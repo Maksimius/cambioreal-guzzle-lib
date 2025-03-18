@@ -1,5 +1,5 @@
 {
-    "name": "cambioreal/cambioreal",
+    "name": "maksimius/cambioreal-guzzle-lib",
     "description": "CambioReal PHP library",
     "keywords": ["cambioreal", "payment processing", "api"],
     "homepage": "https://www.cambioreal.com",
