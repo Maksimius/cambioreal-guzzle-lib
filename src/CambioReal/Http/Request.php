@@ -3,6 +3,7 @@
 namespace CambioReal\Http;
 
 use CambioReal\Config;
+use GuzzleHttp;
 
 /**
  * HTTP client class, wrapper for curl_* functions.
@@ -102,40 +103,41 @@ class Request
      */
     public function send()
     {
-        if (! ini_get('allow_url_fopen')) {
-            throw new \RuntimeException('allow_url_fopen must be enabled to use PHP streams.');
-        }
-
-        $params = http_build_query($this->params);
+        $client = new GuzzleHttp\Client();
         $uri = $this->action;
 
+        $options = [
+            'headers' => [
+                'User-Agent' => 'CAMBIOREAL PHP Library ' . \CambioReal\CambioReal::VERSION,
+                'X-APP-ID' => Config::getAppId(),
+                'X-APP-SECRET' => Config::getAppSecret()
+            ],
+            'http_errors' => false
+        ];
+
+        // Обрабатываем token, если есть
         if (isset($this->params['token'])) {
-            $uri .= '/'.$this->params['token'];
+            $uri .= '/' . $this->params['token'];
             unset($this->params['token']);
         }
 
-        $context = stream_context_create([
-            'http' => [
-                'ignore_errors' => true,
-                'method' => $this->method,
-                'header' => "Content-Type: application/x-www-form-urlencoded \r\n".
-                    'User-Agent: CAMBIOREAL PHP Library '.\CambioReal\CambioReal::VERSION."\r\n".
-                    'X-APP-ID: '.Config::getAppId()."\r\n".
-                    'X-APP-SECRET: '.Config::getAppSecret(),
-                'content' => $params,
-            ],
-        ]);
-
-        $response = file_get_contents($uri, false, $context);
-
-        if ($response && strlen($response)) {
-            if ($this->decodeResponse) {
-                return json_decode($response);
-            }
-
-            return $response;
+        // Правильно распределяем параметры в зависимости от HTTP метода
+        if (strtoupper($this->method) === 'GET') {
+            $options['query'] = $this->params;
+        } else {
+            $options['form_params'] = $this->params;
         }
 
-        throw new \RuntimeException("Bad HTTP request: {$response}");
+        $response = $client->request($this->method, $uri, $options);
+        $body = (string) $response->getBody();
+
+        if ($body && strlen($body)) {
+            if ($this->decodeResponse) {
+                return json_decode($body);
+            }
+            return $body;
+        }
+
+        throw new \RuntimeException("Bad HTTP request: " . $response->getStatusCode());
     }
 }
